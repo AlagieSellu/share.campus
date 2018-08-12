@@ -1,0 +1,202 @@
+@extends('layouts.app')
+
+@section('content')
+<div class="row justify-content-center">
+    <div class="col-md-9">
+
+        <div class="row">
+            <div class="col-lg-4">
+                <a class="btn btn-primary btn-block" href="{{ route('folders.home') }}">
+                    <i class="fa fa-home"></i> {{ __('Home Folder') }}
+                </a>
+            </div>
+            <div class="col-lg-8">
+                <div class="form-group input-group">
+                    <button class="btn btn-info form-control" data-toggle="modal" data-target="#uploadModal">
+                        <i class="fa fa-cloud-upload"></i> Upload Box
+                    </button>
+                    <button class="btn btn-outline-info form-control col-6" data-toggle="modal" data-target="#searchModal">
+                        <i class="fa fa-search"></i> Search Box
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <i class="fa fa-cloud-upload"></i> Shared Boxes
+            </div>
+
+            <div class="card-body">
+
+                <div class="table-responsive table-hover">
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Box</th>
+                            <th>Size</th>
+                            <th>Downloads</th>
+                            <th>Uploaded At</th>
+                            <th>Will Expire</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach($boxes as $box)
+                            <tr>
+                                <th>
+                                    <a href="{{ route('boxes.show', $box->id) }}">{{ $box->address }}</a>
+                                </th>
+                                <th>{{ $box->name }}</th>
+                                <td>{{ $box->size() }}</td>
+                                <td>{{ $box->downloads }}</td>
+                                <td>{{ $box->created_at->diffForHumans() }}</td>
+                                <td>{{ $box->expire_at()->diffForHumans() }}</td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+        <br>
+        <div class="card">
+            <div class="card-header">
+                <i class="fa fa-share-alt-square"></i> Recent Shares
+            </div>
+
+            <div class="card-body">
+
+                <div class="table-responsive table-hover">
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th></th>
+                            <th>Object</th>
+                            <th>User</th>
+                            <th>Time</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach($shares as $share)
+                            <tr>
+                                <th>
+                                    <a href="{{ route('shares.show', $share->id) }}"><i class="fa fa-{{ $share->is_file ? ($share->object->is_doc ? 'newspaper-o':'file-o') :'folder-o' }}"></i></a>
+                                </th>
+                                <th>
+                                    <a href="{{ route('shares.show', $share->id) }}">{{ $share->object->name() }}</a>
+                                </th>
+                                <td class="text-primary">
+                                    {{ $share->object->user->name }}
+                                    <small><i class="fa fa-angle-double-right"></i> {{ $share->object->user->email }}</small>
+                                </td>
+                                <td>{{ $share->created_at->diffForHumans() }}</td>
+                                <td><a href="{{ route('shares.destroy', $share->id) }}"><i class="fa fa-times text-danger"></i></a></td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                    {{ $shares->links()  }}
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="uploadModalLabel">
+                    <i class="fa fa-cloud-upload"></i> Upload Box
+                    <small>{{ $auth->available_storage() }} storage available</small>
+                </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <form action="{{ route('boxes.store') }}" id="box_form" method="post" enctype="multipart/form-data">
+                    @csrf
+
+                    <h4 class="col-12 text-danger text-center" id="display_error"></h4>
+                    <div class="form-group col-5">
+                        <strong>Lifespan</strong>
+                        <input class="form-control{{ $errors->has('lifespan') ? ' is-invalid' : '' }}" required  name="lifespan"
+                               type="number" min="1" max="{{ config('sys.box_max_days') }}" value="{{ old('lifespan') == null ? 1 : old('lifespan') }}">
+                        @if ($errors->has('lifespan'))
+                            <span class="invalid-feedback">
+                                <strong>{{ $errors->first('lifespan') }}</strong>
+                            </span>
+                        @endif
+                    </div>
+                    <div class="form-group input-group">
+                        <input type="file" name="file" id="box_file" placeholder="Share a zipped file." required onchange="checkBox()"
+                               class="form-control{{ $errors->has('file') ? ' is-invalid' : '' }}" value="{{ old('file') }}">
+                        <button type="submit" class="btn btn-outline-info form-control col-4">
+                            <i class="fa fa-upload"></i> Upload
+                        </button>
+                        @if ($errors->has('file'))
+                            <span class="invalid-feedback">
+                        <strong>{{ $errors->first('file') }}</strong>
+                    </span>
+                        @endif
+                    </div>
+                    <script type="text/javascript">
+                        function checkBox() {
+                            document.getElementById('display_error').innerText = '';
+                            var box_file = document.getElementById('box_file');
+                            if (box_file.files[0].size > {{ config('sys.max_upload') }}){
+                                document.getElementById('box_form').reset();
+                                document.getElementById('display_error').innerText = 'File too big to be uploaded.';
+                            }
+                            var extension = box_file.files[0].name.substr(
+                                box_file.files[0].name.length - 3, 3
+                            );
+
+                            if(extension != 'zip'){
+                                document.getElementById('box_form').reset();
+                                document.getElementById('display_error').innerText = 'Only zip files allowed.';
+                            }
+                        }
+                    </script>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="searchModal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">
+                    <i class="fa fa-search"></i> Search Box
+                </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <form action="{{ route('boxes.search') }}" method="post">
+                    @csrf
+                    <div class="form-group input-group col-12">
+                        <input type="text" name="box_id" placeholder="Enter box id." required
+                               class="form-control{{ $errors->has('box_id') ? ' is-invalid' : '' }}" value="{{ old('box_id') }}">
+                        <button type="submit" class="btn btn-outline-info form-control col-5">
+                            <i class="fa fa-search"></i> Search
+                        </button>
+                        @if ($errors->has('box_id'))
+                            <span class="invalid-feedback">
+                                <strong>{{ $errors->first('box_id') }}</strong>
+                            </span>
+                        @endif
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
